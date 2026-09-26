@@ -15,14 +15,15 @@ static inline void handle_susfs_setresuid(struct cred *new, const struct cred *o
 	bool is_isolated = is_isolated_process(new_uid);
 	bool should_umount = likely((is_appuid(new_uid) || new_uid == WEBVIEW_ZYGOTE_UID) && ksu_uid_should_umount(new_uid));
 
-	susfs_set_current_proc_no_su();
+	/* SUSFS 2.2.0 De-Inlined doesn't have susfs_set_current_proc_no_su()
+	 * or the separate zygote_next deferred-umount marker yet (both were
+	 * added in 2.3.0). Fall back to pre-2.3.0 behavior: umount right
+	 * away for both zygote and zygote_next spawned processes. */
+	(void)is_zygote_next;
 
 	if (is_isolated || should_umount) {
 		susfs_set_current_proc_umounted();
-		if (is_zygote_next)
-			susfs_set_current_proc_umounted_for_zygote_next();
-		if (!is_zygote_next)
-			ksu_handle_umount(new, old);
+		ksu_handle_umount(new, old);
 		ksu_handle_extra_susfs_work();
 	}
 }
